@@ -2,7 +2,7 @@ from PyQt5.QtGui import *
 import processing
 
 # Specify the maximum elevation in meters
-max_elevation = 1
+max_elevation = 0.5
 
 # Make a string for naming files
 elevation_name = str(max_elevation).replace('.', '')
@@ -26,6 +26,7 @@ else:
 # select and zoom to layer
 iface.setActiveLayer(raw_dem)
 iface.zoomToActiveLayer()
+
 
 # Select a working directory
 message_text = 'Select a working directory when prompted'
@@ -96,14 +97,6 @@ with edit(raw_vector_layer):
         feature['raw_area_m'] = QgsExpression('$area').evaluate(context)
         raw_vector_layer.updateFeature(feature)
 
-# -- Copy the vector to outputs directory
-output_vector_name = 'final_' + elevation_name + 'm.gpkg'
-output_vector_path = os.path.join(outputs_path, output_vector_name)
-QgsVectorFileWriter.writeAsVectorFormat(raw_vector_layer, output_vector_path, 'utf-8,', driverName = 'GPKG')
-
-# open the output layer
-output_vector_layer = QgsVectorLayer(output_vector_path, '', 'ogr')
-
 # -- Simplify Polygons --
 simp_vector_name = 'simp_' + elevation_name + 'm.gpkg'
 simp_vector_path = os.path.join(intermediates_path, simp_vector_name)
@@ -111,29 +104,80 @@ simp_vector_path = os.path.join(intermediates_path, simp_vector_name)
 processing.run("native:simplifygeometries", 
     {'INPUT':raw_vector_layer,
         'METHOD':0,
-        'TOLERANCE':0.000005,
+        'TOLERANCE':0.000008,
         'OUTPUT':simp_vector_path})
 
 simp_vector_layer = QgsVectorLayer(simp_vector_path, '', 'ogr')
 
 
 # -- Smooth the polygons --
+smooth_vector_name = 'smooth_' + elevation_name + 'm.gpkg'
+smooth_vector_path = os.path.join(intermediates_path, smooth_vector_name)
+        
+processing.run("native:smoothgeometry",
+    {'INPUT':simp_vector_layer,
+    'ITERATIONS':1,
+    'OFFSET':0.25,
+    'MAX_ANGLE':180,
+    'OUTPUT':smooth_vector_path})
+
+smooth_vector_layer = QgsVectorLayer(smooth_vector_path, '', 'ogr')
+
+# Create a context and scope
+# Understand WTF this is??
+context = QgsExpressionContext()
+context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(smooth_vector_layer))
+
+# add an area attribute
+# create a provider
+pv = smooth_vector_layer.dataProvider()
+
+# add the attribute and update
+pv.addAttributes([QgsField('area_m', QVariant.Int)])
+smooth_vector_layer.updateFields()
+
+# Loop through and add the areas
+with edit(smooth_vector_layer):
+# loop them
+    for feature in smooth_vector_layer.getFeatures():
+        context.setFeature(feature)
+        feature['area_m'] = QgsExpression('$area').evaluate(context)
+        smooth_vector_layer.updateFeature(feature)
+
+
+# -- Copy the vector to outputs directory
+output_vector_name = 'final_' + elevation_name + 'm.gpkg'
+output_vector_path = os.path.join(outputs_path, output_vector_name)
+QgsVectorFileWriter.writeAsVectorFormat(smooth_vector_layer, output_vector_path, 'utf-8,', driverName = 'GPKG')
+
+# open the output layer
+output_vector_layer = QgsVectorLayer(output_vector_path, '', 'ogr')
 
 
 # -- Delete Unneeded Fields --
-
+pv = output_vector_layer.dataProvider()
+pv.deleteAttributes([1, 2])
+output_vector_layer.updateFields()
 
 
 # -- Delete small polygons --
+# data provider capabilities
+caps = output_vector_layer.dataProvider().capabilities()
+
+# features and empty list of features to delete
+features = output_vector_layer.getFeatures()
+delete_features = []
+
+# if the layer can have deleted features
+if caps & QgsVectorDataProvider.DeleteFeatures:
+    for feature in features:
+        if feature['area_m'] <= 9:
+            delete_features.append(feature.id())
+    result = output_vector_layer.dataProvider().deleteFeatures(delete_features)
+    output_vector_layer.triggerRepaint()
 
 
+# -- Add final vector to the interface --
+iface.addVectorLayer(output_vector_path, '', 'ogr')
 
-
-
-
-
-
-
-# -- REDUCE VECTOR --
-
-
+# TODO - styles
