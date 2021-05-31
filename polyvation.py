@@ -1,13 +1,11 @@
 from PyQt5.QtGui import *
 import processing
 
-
 # Specify the maximum elevation in meters
 max_elevation = 1
 
 # Make a string for naming files
 elevation_name = str(max_elevation).replace('.', '')
-
 
 # file dialog to select DEM data
 message_text = 'Select a detrended DEM'
@@ -33,7 +31,6 @@ iface.zoomToActiveLayer()
 message_text = 'Select a working directory when prompted'
 iface.messageBar().pushMessage(message_text, duration=10)
 work_path = QFileDialog.getExistingDirectory()
-
 
 # create directories for intermediates and outputs
 outputs_path = os.path.join(work_path, 'outputs')
@@ -83,7 +80,7 @@ raw_vector_layer = QgsVectorLayer(raw_vector_path, '', 'ogr')
 pv = raw_vector_layer.dataProvider()
 
 # add the attribute and update
-pv.addAttributes([QgsField('area_m', QVariant.Int)])
+pv.addAttributes([QgsField('raw_area_m', QVariant.Int)])
 raw_vector_layer.updateFields()
 
 # Create a context and scope
@@ -91,19 +88,45 @@ raw_vector_layer.updateFields()
 context = QgsExpressionContext()
 context.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(raw_vector_layer))
 
-
 # Loop through and add the areas
 with edit(raw_vector_layer):
 # loop them
     for feature in raw_vector_layer.getFeatures():
         context.setFeature(feature)
-        feature['area_m'] = QgsExpression('$area').evaluate(context)
+        feature['raw_area_m'] = QgsExpression('$area').evaluate(context)
         raw_vector_layer.updateFeature(feature)
+
+# -- Copy the vector to outputs directory
+output_vector_name = 'final_' + elevation_name + 'm.gpkg'
+output_vector_path = os.path.join(outputs_path, output_vector_name)
+QgsVectorFileWriter.writeAsVectorFormat(raw_vector_layer, output_vector_path, 'utf-8,', driverName = 'GPKG')
+
+# open the output layer
+output_vector_layer = QgsVectorLayer(output_vector_path, '', 'ogr')
+
+# -- Simplify Polygons --
+simp_vector_name = 'simp_' + elevation_name + 'm.gpkg'
+simp_vector_path = os.path.join(intermediates_path, simp_vector_name)
+
+processing.run("native:simplifygeometries", 
+    {'INPUT':raw_vector_layer,
+        'METHOD':0,
+        'TOLERANCE':0.000005,
+        'OUTPUT':simp_vector_path})
+
+simp_vector_layer = QgsVectorLayer(simp_vector_path, '', 'ogr')
+
+
+# -- Smooth the polygons --
 
 
 # -- Delete Unneeded Fields --
 
-# -- Smooth the polygons --
+
+
+# -- Delete small polygons --
+
+
 
 
 
