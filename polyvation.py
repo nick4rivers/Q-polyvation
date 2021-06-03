@@ -2,7 +2,7 @@ from PyQt5.QtGui import *
 import processing
 
 # Specify the maximum elevation in meters
-max_elevation = 0.5
+max_elevation = 3
 
 # Make a string for naming files
 elevation_name = str(max_elevation).replace('.', '')
@@ -145,10 +145,21 @@ with edit(smooth_vector_layer):
         smooth_vector_layer.updateFeature(feature)
 
 
+# -- Do a quick geometry fix for twisted polygons --
+fixed_vector_name = 'fixed_' + elevation_name + 'm.gpkg'
+fixed_vector_path = os.path.join(intermediates_path, fixed_vector_name)
+processing.run("native:fixgeometries",
+    {'INPUT':smooth_vector_path,
+    'OUTPUT':fixed_vector_path})
+
+# Open the fixed vector
+fixed_vector_layer = QgsVectorLayer(fixed_vector_path, '', 'ogr')
+
+
 # -- Copy the vector to outputs directory
 output_vector_name = 'final_' + elevation_name + 'm.gpkg'
 output_vector_path = os.path.join(outputs_path, output_vector_name)
-QgsVectorFileWriter.writeAsVectorFormat(smooth_vector_layer, output_vector_path, 'utf-8,', driverName = 'GPKG')
+QgsVectorFileWriter.writeAsVectorFormat(fixed_vector_layer, output_vector_path, 'utf-8,', driverName = 'GPKG')
 
 # open the output layer
 output_vector_layer = QgsVectorLayer(output_vector_path, '', 'ogr')
@@ -175,6 +186,7 @@ if caps & QgsVectorDataProvider.DeleteFeatures:
             delete_features.append(feature.id())
     result = output_vector_layer.dataProvider().deleteFeatures(delete_features)
     output_vector_layer.triggerRepaint()
+
 
 
 # -- Add final vector to the interface --
