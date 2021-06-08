@@ -2,7 +2,7 @@ from PyQt5.QtGui import *
 import processing
 
 # Specify the maximum elevation in meters
-max_elevation = 3
+max_elevation = 1
 
 # Make a string for naming files
 elevation_name = str(max_elevation).replace('.', '')
@@ -13,7 +13,12 @@ iface.messageBar().pushMessage(message_text, duration=10)
 raw_dem_path = QFileDialog.getOpenFileName()[0]
 
 # load the raster and add to the map
-# TODO only add to the map if not already there
+# only add to the map if not already there
+try:
+    QgsProject.instance().removeMapLayer(raw_dem)
+except:
+    print('No layer to remove')
+
 raw_dem = iface.addRasterLayer(raw_dem_path, 'raw_dem')
 
 # give a success message if valid
