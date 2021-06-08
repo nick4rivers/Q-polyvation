@@ -2,7 +2,8 @@ from PyQt5.QtGui import *
 import processing
 
 # Specify the maximum elevation in meters
-max_elevation = 1
+max_elevation = 4
+surface_name = 'valley bottom'
 
 # Make a string for naming files
 elevation_name = str(max_elevation).replace('.', '')
@@ -19,9 +20,11 @@ try:
 except:
     print('No layer to remove')
 
+
 raw_dem = iface.addRasterLayer(raw_dem_path, 'raw_dem')
 
 # give a success message if valid
+# TODO remove this - not helpful and fails on an error
 if raw_dem.isValid():
     iface.messageBar().pushMessage("Successfully loaded elevation data", level=Qgis.Success, duration=10)
 else:
@@ -86,7 +89,7 @@ raw_vector_layer = QgsVectorLayer(raw_vector_path, '', 'ogr')
 pv = raw_vector_layer.dataProvider()
 
 # add the attribute and update
-pv.addAttributes([QgsField('raw_area_m', QVariant.Int)])
+pv.addAttributes([QgsField('raw_area_m', QVariant.Int), QgsField('max_elev_m', QVariant.Double), QgsField('surface_name', QVariant.String)])
 raw_vector_layer.updateFields()
 
 # Create a context and scope
@@ -100,6 +103,8 @@ with edit(raw_vector_layer):
     for feature in raw_vector_layer.getFeatures():
         context.setFeature(feature)
         feature['raw_area_m'] = QgsExpression('$area').evaluate(context)
+        feature['max_elev_m'] = max_elevation
+        feature['surface_name'] = surface_name
         raw_vector_layer.updateFeature(feature)
 
 # -- Simplify Polygons --
