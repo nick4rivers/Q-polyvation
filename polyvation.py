@@ -20,7 +20,9 @@ simplify_tolerance = 0.00005
 # use from 0.25 to 0.5. Use higher value for 10 m DEM
 smoothing_offset = 0.1
 
-
+# small polygon removal area in meters
+# generally been using 9 meters as a cutoff to remove small islands
+polygon_min_size = 9
 
 # file dialog to select DEM data
 message_text = 'Select a detrended DEM'
@@ -212,7 +214,7 @@ delete_features = []
 # if the layer can have deleted features
 if caps & QgsVectorDataProvider.DeleteFeatures:
     for feature in features:
-        if feature['area_m'] <= 9:
+        if feature['area_m'] <= polygon_min_size:
             delete_features.append(feature.id())
     result = output_vector_layer.dataProvider().deleteFeatures(delete_features)
     output_vector_layer.triggerRepaint()
