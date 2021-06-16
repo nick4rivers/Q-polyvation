@@ -1,5 +1,26 @@
+import os
+from qgis.core import (
+    QgsProject,
+    QgsVectorLayer,
+    QgsField,
+    QgsExpression,
+    QgsExpressionContext,
+    QgsExpressionContextUtils,
+    QgsVectorFileWriter,
+    QgsVectorDataProvider,
+    Qgis,
+    edit
+)
+
+from PyQt5.QtWidgets import QFileDialog
+
+from qgis.PyQt.QtCore import QVariant
+
 from PyQt5.QtGui import *
-import processing
+from qgis.utils import iface
+
+from qgis import processing
+
 
 # Specify the maximum elevation in meters
 max_elevation = 3
@@ -35,6 +56,7 @@ try:
     QgsProject.instance().removeMapLayer(raw_dem)
 except:
     print('No layer to remove')
+
 
 
 raw_dem = iface.addRasterLayer(raw_dem_path, 'raw_dem')
